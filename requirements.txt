@@ -1,0 +1,32 @@
+# Core dependencies
+fastapi
+uvicorn
+python-multipart
+pydantic
+pydantic-settings
+jinja2
+langchain-core
+langgraph
+python-dotenv
+pymupdf
+
+# LLM backends
+langchain-ollama
+langchain-community
+
+# OCR dependencies - uncomment as needed
+# For Tesseract OCR
+pytesseract
+pdf2image
+
+# For PaddleOCR (optional)
+# paddleocr
+
+# For llama.cpp (optional)
+# llama-cpp-python
+
+# Development tools (optional)
+# pytest
+# black
+# isort
+# flake8

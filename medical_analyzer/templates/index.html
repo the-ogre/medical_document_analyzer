@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Document Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .header-box {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .workflow-image {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 5px;
+        }
+        .upload-container {
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .upload-container:hover {
+            border-color: #aaa;
+        }
+        .upload-input {
+            display: none;
+        }
+        .system-info {
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        .spinner-border {
+            display: none;
+        }
+        #result-container {
+            display: none;
+        }
+        .nav-tabs {
+            margin-bottom: 15px;
+        }
+        .tech-badge {
+            font-size: 0.8em;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <div class="header-box">
+            <h1 class="text-center">Medical Document Analyzer</h1>
+            <p class="text-center lead">Upload your medical document to analyze it using open-source AI models</p>
+            <div class="system-info text-center">
+                <span class="badge bg-primary tech-badge">LLM: {{ llm_backend }}</span>
+                <span class="badge bg-success tech-badge">OCR: {{ ocr_engine }}</span>
+                <span class="badge bg-secondary tech-badge">LangGraph</span>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-5">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Processing Workflow
+                    </div>
+                    <div class="card-body">
+                        <img src="data:image/png;base64,{{ graph_base64 }}" class="workflow-image" alt="Workflow Diagram">
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        Upload Medical Document
+                    </div>
+                    <div class="card-body">
+                        <form id="upload-form">
+                            <div class="upload-container" id="drop-area">
+                                <p>Drag & drop your PDF file here or</p>
+                                <label for="file-input" class="btn btn-primary">Select File</label>
+                                <input type="file" id="file-input" class="upload-input" accept=".pdf">
+                                <p class="mt-2" id="file-name">No file selected</p>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">
+                                <span class="spinner-border spinner-border-sm" id="loading-spinner" role="status" aria-hidden="true"></span>
+                                <span id="upload-text">Analyze Document</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-7">
+                <div id="result-container" class="card">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="result-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" type="button" role="tab" aria-controls="summary" aria-selected="true">Summary</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis" type="button" role="tab" aria-controls="analysis" aria-selected="false">Analysis</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="validation-tab" data-bs-toggle="tab" data-bs-target="#validation" type="button" role="tab" aria-controls="validation" aria-selected="false">Validation</button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="result-tabs-content">
+                            <div class="tab-pane fade show active" id="summary" role="tabpanel" aria-labelledby="summary-tab">
+                                <div id="summary-content"></div>
+                            </div>
+                            <div class="tab-pane fade" id="analysis" role="tabpanel" aria-labelledby="analysis-tab">
+                                <div id="analysis-content"></div>
+                            </div>
+                            <div class="tab-pane fade" id="validation" role="tabpanel" aria-labelledby="validation-tab">
+                                <div id="validation-content"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropArea = document.getElementById('drop-area');
+            const fileInput = document.getElementById('file-input');
+            const fileName = document.getElementById('file-name');
+            const uploadForm = document.getElementById('upload-form');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const uploadText = document.getElementById('upload-text');
+            const resultContainer = document.getElementById('result-container');
+            
+            // Handle drag and drop
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, highlight, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, unhighlight, false);
+            });
+            
+            function highlight() {
+                dropArea.style.borderColor = '#2196f3';
+            }
+            
+            function unhighlight() {
+                dropArea.style.borderColor = '#ccc';
+            }
+            
+            dropArea.addEventListener('drop', handleDrop, false);
+            
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                fileInput.files = files;
+                updateFileName();
+            }
+            
+            fileInput.addEventListener('change', updateFileName);
+            
+            function updateFileName() {
+                if (fileInput.files.length) {
+                    fileName.textContent = fileInput.files[0].name;
+                } else {
+                    fileName.textContent = 'No file selected';
+                }
+            }
+            
+            uploadForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                if (!fileInput.files.length) {
+                    alert('Please select a file first.');
+                    return;
+                }
+                
+                // Show loading state
+                loadingSpinner.style.display = 'inline-block';
+                uploadText.textContent = 'Processing...';
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                try {
+                    const response = await fetch('/analyze-medical-document', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok) {
+                        // Display the results
+                        document.getElementById('summary-content').innerHTML = marked.parse(result.summary);
+                        document.getElementById('analysis-content').innerHTML = marked.parse(result.analysis);
+                        document.getElementById('validation-content').innerHTML = marked.parse(result.validation);
+                        
+                        resultContainer.style.display = 'block';
+                    } else {
+                        alert('Error: ' + result.message);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred during processing.');
+                } finally {
+                    // Reset loading state
+                    loadingSpinner.style.display = 'none';
+                    uploadText.textContent = 'Analyze Document';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

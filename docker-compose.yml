@@ -1,0 +1,42 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  # Main application
+  medical_analyzer:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./medical_analyzer:/app/medical_analyzer
+      - medical_data:/app/medical_analyzer/data
+      - medical_models:/app/medical_analyzer/models
+    env_file:
+      - .env
+    depends_on:
+      - ollama
+    environment:
+      - LLM_BACKEND=ollama
+      - OLLAMA_HOST=http://ollama:11434
+    restart: unless-stopped
+
+  # Ollama service for running the local LLMs
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+volumes:
+  medical_data:
+  medical_models:
+  ollama_data:
